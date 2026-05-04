@@ -1,6 +1,6 @@
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
-const User = require('../models/User');
+const { User } = require('../models');
 
 const generateToken = (id) => {
   return jwt.sign({ id }, process.env.JWT_SECRET, { expiresIn: '30d' });
@@ -13,7 +13,7 @@ const signup = async (req, res) => {
     throw new Error('Please add name, email and password');
   }
 
-  const userExists = await User.findOne({ email });
+  const userExists = await User.findOne({ where: { email } });
   if (userExists) {
     res.status(400);
     throw new Error('User already exists');
@@ -31,11 +31,11 @@ const signup = async (req, res) => {
 
   if (user) {
     res.status(201).json({
-      _id: user._id,
+      _id: user.id,
       name: user.name,
       email: user.email,
       role: user.role,
-      token: generateToken(user._id),
+      token: generateToken(user.id),
     });
   } else {
     res.status(400);
@@ -45,15 +45,15 @@ const signup = async (req, res) => {
 
 const login = async (req, res) => {
   const { email, password } = req.body;
-  const user = await User.findOne({ email });
+  const user = await User.findOne({ where: { email } });
 
   if (user && (await bcrypt.compare(password, user.password))) {
     res.json({
-      _id: user._id,
+      _id: user.id,
       name: user.name,
       email: user.email,
       role: user.role,
-      token: generateToken(user._id),
+      token: generateToken(user.id),
     });
   } else {
     res.status(401);

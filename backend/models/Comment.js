@@ -1,12 +1,12 @@
-const mongoose = require('mongoose');
+const { DataTypes } = require('sequelize');
+const sequelize = require('../config/db').sequelize;
 
-const commentSchema = mongoose.Schema(
-  {
-    taskId: { type: mongoose.Schema.Types.ObjectId, required: true, ref: 'Task' },
-    userId: { type: mongoose.Schema.Types.ObjectId, required: true, ref: 'User' },
-    text: { type: String, required: true },
-  },
-  { timestamps: true }
-);
+const Comment = sequelize.define('Comment', {
+  taskId: { type: DataTypes.INTEGER, allowNull: false },
+  userId: { type: DataTypes.INTEGER, allowNull: false },
+  text: { type: DataTypes.TEXT, allowNull: false },
+}, {
+  timestamps: true,
+});
 
-module.exports = mongoose.model('Comment', commentSchema);
+module.exports = Comment;

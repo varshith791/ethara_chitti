@@ -1,12 +1,12 @@
-const mongoose = require('mongoose');
+const { DataTypes } = require('sequelize');
+const sequelize = require('../config/db').sequelize;
 
-const activitySchema = mongoose.Schema(
-  {
-    taskId: { type: mongoose.Schema.Types.ObjectId, required: true, ref: 'Task' },
-    action: { type: String, required: true },
-    performedBy: { type: mongoose.Schema.Types.ObjectId, required: true, ref: 'User' },
-  },
-  { timestamps: true }
-);
+const Activity = sequelize.define('Activity', {
+  taskId: { type: DataTypes.INTEGER, allowNull: false },
+  action: { type: DataTypes.STRING, allowNull: false },
+  performedBy: { type: DataTypes.INTEGER, allowNull: false },
+}, {
+  timestamps: true,
+});
 
-module.exports = mongoose.model('Activity', activitySchema);
+module.exports = Activity;

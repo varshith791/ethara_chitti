@@ -1,6 +1,5 @@
-const Task = require('../models/Task');
-const Project = require('../models/Project');
-const Activity = require('../models/Activity');
+const { Op } = require('sequelize');
+const { Task, Project, Activity, User } = require('../models');
 
 const logActivity = async (taskId, action, performedBy) => {
   await Activity.create({ taskId, action, performedBy });
@@ -13,7 +12,7 @@ const createTask = async (req, res) => {
     throw new Error('Title and project are required');
   }
 
-  const project = await Project.findById(projectId);
+  const project = await Project.findByPk(projectId);
   if (!project) {
     res.status(404);
     throw new Error('Project not found');
@@ -25,12 +24,13 @@ const createTask = async (req, res) => {
     assignedTo,
     dueDate,
     projectId,
-    createdBy: req.user._id,
+    createdBy: req.user.id,
   });
 
-  await logActivity(task._id, `Task created`, req.user._id);
+  await logActivity(task.id, 'Task created', req.user.id);
   if (assignedTo) {
-    await logActivity(task._id, `Assigned to ${assignedTo}`, req.user._id);
+    const assignedUser = await User.findByPk(assignedTo);
+    await logActivity(task.id, `Assigned to ${assignedUser?.name || assignedTo}`, req.user.id);
   }
 
   res.status(201).json(task);
@@ -38,43 +38,56 @@ const createTask = async (req, res) => {
 
 const getTasks = async (req, res) => {
   const { status, search } = req.query;
-  const query = {};
+  const where = {};
 
   if (req.user.role === 'Member') {
-    query.$or = [{ assignedTo: req.user._id }];
+    const memberProjects = await req.user.getProjects({ attributes: ['id'] });
+    const projectIds = memberProjects.map((project) => project.id);
+    where.projectId = projectIds.length ? projectIds : 0;
   }
 
   if (status) {
-    query.status = status;
+    where.status = status;
   }
 
   if (search) {
-    query.title = { $regex: search, $options: 'i' };
+    where.title = { [Op.iLike]: `%${search}%` };
   }
 
-  const tasks = await Task.find(query)
-    .populate('assignedTo', 'name email')
-    .populate('projectId', 'title')
-    .populate('createdBy', 'name')
-    .sort({ createdAt: -1 });
+  const tasks = await Task.findAll({
+    where,
+    include: [
+      { model: User, as: 'assignedToUser', attributes: ['id', 'name', 'email'] },
+      { model: Project, as: 'project', attributes: ['id', 'title'] },
+      { model: User, as: 'creator', attributes: ['id', 'name'] },
+    ],
+    order: [['createdAt', 'DESC']],
+  });
 
   res.json(tasks);
 };
 
 const getTaskById = async (req, res) => {
-  const task = await Task.findById(req.params.id)
-    .populate('assignedTo', 'name email')
-    .populate('projectId', 'title description')
-    .populate('createdBy', 'name email');
+  const task = await Task.findByPk(req.params.id, {
+    include: [
+      { model: User, as: 'assignedToUser', attributes: ['id', 'name', 'email'] },
+      { model: Project, as: 'project', attributes: ['id', 'title', 'description'] },
+      { model: User, as: 'creator', attributes: ['id', 'name', 'email'] },
+    ],
+  });
 
   if (!task) {
     res.status(404);
     throw new Error('Task not found');
   }
 
-  if (req.user.role === 'Member' && task.assignedTo?.toString() !== req.user._id.toString()) {
-    res.status(403);
-    throw new Error('Access denied');
+  if (req.user.role === 'Member') {
+    const memberProjects = await req.user.getProjects({ where: { id: task.projectId }, attributes: ['id'] });
+    const allowed = task.assignedTo === req.user.id || memberProjects.length > 0;
+    if (!allowed) {
+      res.status(403);
+      throw new Error('Access denied');
+    }
   }
 
   res.json(task);
@@ -82,25 +95,26 @@ const getTaskById = async (req, res) => {
 
 const updateTask = async (req, res) => {
   const { title, description, assignedTo, status, dueDate } = req.body;
-  const task = await Task.findById(req.params.id);
+  const task = await Task.findByPk(req.params.id);
 
   if (!task) {
     res.status(404);
     throw new Error('Task not found');
   }
 
-  const allowed = req.user.role === 'Admin' || task.assignedTo?.toString() === req.user._id.toString();
+  const allowed = req.user.role === 'Admin' || task.assignedTo === req.user.id;
   if (!allowed) {
     res.status(403);
     throw new Error('You do not have permission to update this task');
   }
 
-  if (assignedTo && assignedTo.toString() !== task.assignedTo?.toString()) {
-    await logActivity(task._id, `Assigned to ${assignedTo}`, req.user._id);
+  if (assignedTo && assignedTo !== task.assignedTo) {
+    const assignedUser = await User.findByPk(assignedTo);
+    await logActivity(task.id, `Assigned to ${assignedUser?.name || assignedTo}`, req.user.id);
   }
 
   if (status && status !== task.status) {
-    await logActivity(task._id, `Status changed to ${status}`, req.user._id);
+    await logActivity(task.id, `Status changed to ${status}`, req.user.id);
   }
 
   task.title = title || task.title;
@@ -111,12 +125,12 @@ const updateTask = async (req, res) => {
 
   await task.save();
 
-  await logActivity(task._id, 'Task updated', req.user._id);
+  await logActivity(task.id, 'Task updated', req.user.id);
   res.json(task);
 };
 
 const deleteTask = async (req, res) => {
-  const task = await Task.findById(req.params.id);
+  const task = await Task.findByPk(req.params.id);
   if (!task) {
     res.status(404);
     throw new Error('Task not found');
@@ -127,14 +141,16 @@ const deleteTask = async (req, res) => {
     throw new Error('Only admins can delete tasks');
   }
 
-  await task.remove();
+  await Task.destroy({ where: { id: task.id } });
   res.json({ message: 'Task deleted' });
 };
 
 const getTaskActivity = async (req, res) => {
-  const activities = await Activity.find({ taskId: req.params.id })
-    .populate('performedBy', 'name email')
-    .sort({ createdAt: -1 });
+  const activities = await Activity.findAll({
+    where: { taskId: req.params.id },
+    include: [{ model: User, as: 'actor', attributes: ['id', 'name', 'email'] }],
+    order: [['createdAt', 'DESC']],
+  });
 
   res.json(activities);
 };

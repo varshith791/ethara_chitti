@@ -1,36 +1,55 @@
-const Project = require('../models/Project');
-const User = require('../models/User');
+const { Project, User } = require('../models');
 
 const createProject = async (req, res) => {
-  const { title, description, teamMembers } = req.body;
+  const { title, description, teamMembers = [] } = req.body;
   if (!title) {
     res.status(400);
     throw new Error('Project title is required');
   }
 
-  const members = teamMembers || [];
-  const validMembers = await User.find({ _id: { $in: members } }).select('_id');
-
   const project = await Project.create({
     title,
     description,
-    createdBy: req.user._id,
-    teamMembers: validMembers.map((member) => member._id),
+    createdBy: req.user.id,
   });
 
-  res.status(201).json(project);
+  if (teamMembers.length) {
+    const members = await User.findAll({ where: { id: teamMembers } });
+    await project.addTeamMembers(members);
+  }
+
+  const result = await Project.findByPk(project.id, {
+    include: [
+      { model: User, as: 'creator', attributes: ['id', 'name', 'email', 'role'] },
+      { model: User, as: 'teamMembers', attributes: ['id', 'name', 'email', 'role'], through: { attributes: [] } },
+    ],
+  });
+
+  res.status(201).json(result);
 };
 
 const getProjects = async (req, res) => {
-  let query = {};
-  if (req.user.role === 'Member') {
-    query = { teamMembers: req.user._id };
-  }
+  const baseInclude = [
+    { model: User, as: 'creator', attributes: ['id', 'name', 'email', 'role'] },
+    { model: User, as: 'teamMembers', attributes: ['id', 'name', 'email', 'role'], through: { attributes: [] } },
+  ];
 
-  const projects = await Project.find(query)
-    .populate('createdBy', 'name email role')
-    .populate('teamMembers', 'name email role')
-    .sort({ createdAt: -1 });
+  let projects;
+  if (req.user.role === 'Member') {
+    projects = await Project.findAll({
+      include: [
+        baseInclude[0],
+        {
+          ...baseInclude[1],
+          where: { id: req.user.id },
+          required: true,
+        },
+      ],
+      order: [['createdAt', 'DESC']],
+    });
+  } else {
+    projects = await Project.findAll({ include: baseInclude, order: [['createdAt', 'DESC']] });
+  }
 
   res.json(projects);
 };
@@ -39,43 +58,61 @@ const addTeamMember = async (req, res) => {
   const { projectId } = req.params;
   const { userId } = req.body;
 
-  const project = await Project.findById(projectId);
+  const project = await Project.findByPk(projectId);
   if (!project) {
     res.status(404);
     throw new Error('Project not found');
   }
 
-  const user = await User.findById(userId);
+  const user = await User.findByPk(userId);
   if (!user) {
     res.status(404);
     throw new Error('User not found');
   }
 
-  if (project.teamMembers.includes(userId)) {
+  const isMember = await project.hasTeamMember(user);
+  if (isMember) {
     res.status(400);
     throw new Error('User already belongs to this project');
   }
 
-  project.teamMembers.push(userId);
-  await project.save();
+  await project.addTeamMember(user);
+  const updatedProject = await Project.findByPk(project.id, {
+    include: [
+      { model: User, as: 'creator', attributes: ['id', 'name', 'email', 'role'] },
+      { model: User, as: 'teamMembers', attributes: ['id', 'name', 'email', 'role'], through: { attributes: [] } },
+    ],
+  });
 
-  res.json(project);
+  res.json(updatedProject);
 };
 
 const removeTeamMember = async (req, res) => {
   const { projectId } = req.params;
   const { userId } = req.body;
 
-  const project = await Project.findById(projectId);
+  const project = await Project.findByPk(projectId);
   if (!project) {
     res.status(404);
     throw new Error('Project not found');
   }
 
-  project.teamMembers = project.teamMembers.filter((memberId) => memberId.toString() !== userId);
-  await project.save();
+  const user = await User.findByPk(userId);
+  if (!user) {
+    res.status(404);
+    throw new Error('User not found');
+  }
 
-  res.json(project);
+  await project.removeTeamMember(user);
+
+  const updatedProject = await Project.findByPk(project.id, {
+    include: [
+      { model: User, as: 'creator', attributes: ['id', 'name', 'email', 'role'] },
+      { model: User, as: 'teamMembers', attributes: ['id', 'name', 'email', 'role'], through: { attributes: [] } },
+    ],
+  });
+
+  res.json(updatedProject);
 };
 
 module.exports = { createProject, getProjects, addTeamMember, removeTeamMember };
