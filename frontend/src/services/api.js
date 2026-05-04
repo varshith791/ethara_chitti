@@ -1,7 +1,10 @@
 import axios from 'axios';
 
+const apiUrl = import.meta.env.VITE_API_URL || 'https://ethara-chitti.onrender.com/api';
+const baseURL = apiUrl.replace(/\/+$/, '');
+
 const api = axios.create({
-  baseURL: import.meta.env.VITE_API_URL,
+  baseURL,
 });
 
 api.interceptors.response.use(
