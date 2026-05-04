@@ -1,7 +1,8 @@
 import axios from 'axios';
 
-const apiUrl = import.meta.env.VITE_API_URL || 'https://ethara-chitti.onrender.com/api';
-const baseURL = apiUrl.replace(/\/+$/, '');
+const apiUrl = import.meta.env.VITE_API_URL || 'https://ethara-chitti.onrender.com';
+const normalizedUrl = apiUrl.replace(/\/+$/, '');
+const baseURL = normalizedUrl.endsWith('/api') ? normalizedUrl : `${normalizedUrl}/api`;
 
 const api = axios.create({
   baseURL,
