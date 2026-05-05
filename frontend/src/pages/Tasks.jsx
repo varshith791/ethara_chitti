@@ -69,6 +69,22 @@ const Tasks = () => {
     e.preventDefault();
     setError('');
     setMessage('');
+
+    if (!title.trim()) {
+      setError('Task title is required');
+      return;
+    }
+
+    if (!projectId) {
+      setError('Please select a project');
+      return;
+    }
+
+    if (!assignedTo) {
+      setError('Please select a team member to assign the task');
+      return;
+    }
+
     try {
       await createTask({ title, description, assignedTo, dueDate, projectId });
       setTitle('');

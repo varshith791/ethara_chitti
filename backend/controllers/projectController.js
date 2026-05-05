@@ -58,13 +58,21 @@ const addTeamMember = async (req, res) => {
   const { projectId } = req.params;
   const { userId } = req.body;
 
-  const project = await Project.findByPk(projectId);
+  const projectIdInt = parseInt(projectId);
+  const userIdInt = parseInt(userId);
+
+  if (isNaN(projectIdInt) || isNaN(userIdInt)) {
+    res.status(400);
+    throw new Error('Invalid project or user ID');
+  }
+
+  const project = await Project.findByPk(projectIdInt);
   if (!project) {
     res.status(404);
     throw new Error('Project not found');
   }
 
-  const user = await User.findByPk(userId);
+  const user = await User.findByPk(userIdInt);
   if (!user) {
     res.status(404);
     throw new Error('User not found');
@@ -91,13 +99,21 @@ const removeTeamMember = async (req, res) => {
   const { projectId } = req.params;
   const { userId } = req.body;
 
-  const project = await Project.findByPk(projectId);
+  const projectIdInt = parseInt(projectId);
+  const userIdInt = parseInt(userId);
+
+  if (isNaN(projectIdInt) || isNaN(userIdInt)) {
+    res.status(400);
+    throw new Error('Invalid project or user ID');
+  }
+
+  const project = await Project.findByPk(projectIdInt);
   if (!project) {
     res.status(404);
     throw new Error('Project not found');
   }
 
-  const user = await User.findByPk(userId);
+  const user = await User.findByPk(userIdInt);
   if (!user) {
     res.status(404);
     throw new Error('User not found');

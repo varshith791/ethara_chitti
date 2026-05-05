@@ -56,9 +56,19 @@ const Projects = () => {
 
   const handleAddMember = async (e) => {
     e.preventDefault();
-    if (!selectedProjectId || !selectedUserId) return;
     setError('');
     setMessage('');
+
+    if (!selectedProjectId) {
+      setError('Please select a project');
+      return;
+    }
+
+    if (!selectedUserId) {
+      setError('Please select a user to add');
+      return;
+    }
+
     try {
       await addProjectMember(selectedProjectId, { userId: selectedUserId });
       setSelectedUserId('');

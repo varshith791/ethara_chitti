@@ -12,7 +12,15 @@ const createTask = async (req, res) => {
     throw new Error('Title and project are required');
   }
 
-  const project = await Project.findByPk(projectId);
+  const projectIdInt = parseInt(projectId);
+  const assignedToInt = assignedTo ? parseInt(assignedTo) : null;
+
+  if (isNaN(projectIdInt) || (assignedTo && isNaN(assignedToInt))) {
+    res.status(400);
+    throw new Error('Invalid project or assigned user ID');
+  }
+
+  const project = await Project.findByPk(projectIdInt);
   if (!project) {
     res.status(404);
     throw new Error('Project not found');
@@ -21,16 +29,16 @@ const createTask = async (req, res) => {
   const task = await Task.create({
     title,
     description,
-    assignedTo,
+    assignedTo: assignedToInt,
     dueDate,
-    projectId,
+    projectId: projectIdInt,
     createdBy: req.user.id,
   });
 
   await logActivity(task.id, 'Task created', req.user.id);
-  if (assignedTo) {
-    const assignedUser = await User.findByPk(assignedTo);
-    await logActivity(task.id, `Assigned to ${assignedUser?.name || assignedTo}`, req.user.id);
+  if (assignedToInt) {
+    const assignedUser = await User.findByPk(assignedToInt);
+    await logActivity(task.id, `Assigned to ${assignedUser?.name || assignedToInt}`, req.user.id);
   }
 
   res.status(201).json(task);
@@ -95,7 +103,14 @@ const getTaskById = async (req, res) => {
 
 const updateTask = async (req, res) => {
   const { title, description, assignedTo, status, dueDate } = req.body;
-  const task = await Task.findByPk(req.params.id);
+  const taskId = parseInt(req.params.id);
+
+  if (isNaN(taskId)) {
+    res.status(400);
+    throw new Error('Invalid task ID');
+  }
+
+  const task = await Task.findByPk(taskId);
 
   if (!task) {
     res.status(404);
@@ -108,9 +123,15 @@ const updateTask = async (req, res) => {
     throw new Error('You do not have permission to update this task');
   }
 
-  if (assignedTo && assignedTo !== task.assignedTo) {
-    const assignedUser = await User.findByPk(assignedTo);
-    await logActivity(task.id, `Assigned to ${assignedUser?.name || assignedTo}`, req.user.id);
+  const assignedToInt = assignedTo ? parseInt(assignedTo) : null;
+  if (assignedTo && isNaN(assignedToInt)) {
+    res.status(400);
+    throw new Error('Invalid assigned user ID');
+  }
+
+  if (assignedToInt && assignedToInt !== task.assignedTo) {
+    const assignedUser = await User.findByPk(assignedToInt);
+    await logActivity(task.id, `Assigned to ${assignedUser?.name || assignedToInt}`, req.user.id);
   }
 
   if (status && status !== task.status) {
@@ -119,7 +140,7 @@ const updateTask = async (req, res) => {
 
   task.title = title || task.title;
   task.description = description !== undefined ? description : task.description;
-  task.assignedTo = assignedTo || task.assignedTo;
+  task.assignedTo = assignedToInt || task.assignedTo;
   task.status = status || task.status;
   task.dueDate = dueDate !== undefined ? dueDate : task.dueDate;
 
