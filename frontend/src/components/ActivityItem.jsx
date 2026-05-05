@@ -5,7 +5,7 @@ const ActivityItem = ({ activity }) => {
         <div className="text-sm text-slate-900">{activity.action}</div>
         <div className="text-xs text-slate-500">{new Date(activity.createdAt).toLocaleString()}</div>
       </div>
-      <div className="mt-2 text-sm text-slate-600">Performed by: {activity.performedBy?.name || 'Unknown'}</div>
+      <div className="mt-2 text-sm text-slate-600">Performed by: {activity.actor?.name || 'Unknown'}</div>
     </div>
   );
 };

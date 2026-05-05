@@ -11,5 +11,6 @@ const router = express.Router();
 router.use(protect);
 router.route('/').get(getProjects).post(authorize('Admin'), createProject);
 router.route('/:projectId/members').put(authorize('Admin'), addTeamMember).delete(authorize('Admin'), removeTeamMember);
+router.post('/:id/add-member', authorize('Admin'), addTeamMember);
 
 module.exports = router;

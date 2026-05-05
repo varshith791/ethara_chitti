@@ -2,11 +2,13 @@ import { useEffect, useState } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { fetchTasks, createTask } from '../services/taskService';
 import { fetchProjects } from '../services/projectService';
+import { fetchUsers } from '../services/userService';
 import TaskCard from '../components/TaskCard';
 
 const Tasks = () => {
   const [tasks, setTasks] = useState([]);
   const [projects, setProjects] = useState([]);
+  const [users, setUsers] = useState([]);
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
   const [projectId, setProjectId] = useState('');
@@ -31,7 +33,16 @@ const Tasks = () => {
     try {
       const data = await fetchProjects();
       setProjects(data);
-      if (!projectId && data.length) setProjectId(data[0]._id);
+      if (!projectId && data.length) setProjectId(data[0].id);
+    } catch (err) {
+      setError(err.message);
+    }
+  };
+
+  const loadUsers = async () => {
+    try {
+      const data = await fetchUsers();
+      setUsers(data);
     } catch (err) {
       setError(err.message);
     }
@@ -40,11 +51,19 @@ const Tasks = () => {
   useEffect(() => {
     loadTasks();
     loadProjects();
+    if (user.role === 'Admin') {
+      loadUsers();
+    }
   }, []);
 
   useEffect(() => {
     loadTasks();
   }, [status, search]);
+
+  const getProjectMembers = (projectId) => {
+    const project = projects.find(p => p.id === parseInt(projectId));
+    return project ? project.teamMembers : [];
+  };
 
   const handleCreateTask = async (e) => {
     e.preventDefault();
@@ -104,15 +123,21 @@ const Tasks = () => {
                   >
                     <option value="">Select project</option>
                     {projects.map((project) => (
-                      <option key={project._id} value={project._id}>{project.title}</option>
+                      <option key={project.id} value={project.id}>{project.title}</option>
                     ))}
                   </select>
-                  <input
+                  <select
                     value={assignedTo}
                     onChange={(e) => setAssignedTo(e.target.value)}
-                    placeholder="Assigned user ID"
                     className="w-full rounded-2xl border border-slate-300 bg-slate-50 px-4 py-3"
-                  />
+                  >
+                    <option value="">Select member</option>
+                    {getProjectMembers(projectId).map((member) => (
+                      <option key={member.id} value={member.id}>
+                        {member.name} ({member.role})
+                      </option>
+                    ))}
+                  </select>
                 </div>
                 <div className="grid gap-4 md:grid-cols-2">
                   <input
@@ -153,7 +178,7 @@ const Tasks = () => {
           <h2 className="text-xl font-semibold text-slate-900">Task list</h2>
           <div className="mt-5 space-y-4">
             {tasks.map((task) => (
-              <TaskCard key={task._id} task={task} />
+              <TaskCard key={task.id} task={task} />
             ))}
             {!tasks.length && <p className="text-slate-500">No tasks found.</p>}
           </div>

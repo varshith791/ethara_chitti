@@ -1,12 +1,14 @@
 import { useEffect, useState } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { fetchProjects, createProject, addProjectMember, removeProjectMember } from '../services/projectService';
+import { fetchUsers } from '../services/userService';
 
 const Projects = () => {
   const [projects, setProjects] = useState([]);
+  const [users, setUsers] = useState([]);
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
-  const [memberId, setMemberId] = useState('');
+  const [selectedUserId, setSelectedUserId] = useState('');
   const [selectedProjectId, setSelectedProjectId] = useState('');
   const [message, setMessage] = useState('');
   const [error, setError] = useState('');
@@ -21,8 +23,20 @@ const Projects = () => {
     }
   };
 
+  const loadUsers = async () => {
+    try {
+      const data = await fetchUsers();
+      setUsers(data);
+    } catch (err) {
+      setError(err.message);
+    }
+  };
+
   useEffect(() => {
     loadProjects();
+    if (user.role === 'Admin') {
+      loadUsers();
+    }
   }, []);
 
   const handleCreateProject = async (e) => {
@@ -42,12 +56,12 @@ const Projects = () => {
 
   const handleAddMember = async (e) => {
     e.preventDefault();
-    if (!selectedProjectId || !memberId) return;
+    if (!selectedProjectId || !selectedUserId) return;
     setError('');
     setMessage('');
     try {
-      await addProjectMember(selectedProjectId, { userId: memberId });
-      setMemberId('');
+      await addProjectMember(selectedProjectId, { userId: selectedUserId });
+      setSelectedUserId('');
       setMessage('Member added successfully');
       loadProjects();
     } catch (err) {
@@ -56,12 +70,12 @@ const Projects = () => {
   };
 
   const handleRemoveMember = async () => {
-    if (!selectedProjectId || !memberId) return;
+    if (!selectedProjectId || !selectedUserId) return;
     setError('');
     setMessage('');
     try {
-      await removeProjectMember(selectedProjectId, { userId: memberId });
-      setMemberId('');
+      await removeProjectMember(selectedProjectId, { userId: selectedUserId });
+      setSelectedUserId('');
       setMessage('Member removed successfully');
       loadProjects();
     } catch (err) {
@@ -105,7 +119,7 @@ const Projects = () => {
 
       <div className="grid gap-4 md:grid-cols-2">
         {projects.map((project) => (
-          <div key={project._id} className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
+          <div key={project.id} className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
             <div className="flex items-center justify-between gap-4">
               <div>
                 <h3 className="text-xl font-semibold text-slate-900">{project.title}</h3>
@@ -114,11 +128,11 @@ const Projects = () => {
               <span className="rounded-full bg-slate-100 px-3 py-1 text-sm text-slate-700">{project.teamMembers?.length || 0} members</span>
             </div>
             <div className="mt-4 text-sm text-slate-500">
-              Created by: {project.createdBy?.name || 'Unknown'}
+              Created by: {project.creator?.name || 'Unknown'}
             </div>
             <div className="mt-4 flex flex-wrap gap-2">
               {project.teamMembers?.map((member) => (
-                <span key={member._id} className="rounded-full bg-slate-100 px-3 py-1 text-sm text-slate-700">
+                <span key={member.id} className="rounded-full bg-slate-100 px-3 py-1 text-sm text-slate-700">
                   {member.name}
                 </span>
               ))}
@@ -138,15 +152,21 @@ const Projects = () => {
             >
               <option value="">Select project</option>
               {projects.map((project) => (
-                <option key={project._id} value={project._id}>{project.title}</option>
+                <option key={project.id} value={project.id}>{project.title}</option>
               ))}
             </select>
-            <input
-              value={memberId}
-              onChange={(e) => setMemberId(e.target.value)}
-              placeholder="Member user ID"
+            <select
+              value={selectedUserId}
+              onChange={(e) => setSelectedUserId(e.target.value)}
               className="rounded-2xl border border-slate-300 bg-slate-50 px-4 py-3"
-            />
+            >
+              <option value="">Select user</option>
+              {users.map((user) => (
+                <option key={user.id} value={user.id}>
+                  {user.name} ({user.role})
+                </option>
+              ))}
+            </select>
             <div className="flex gap-3">
               <button type="submit" className="rounded-2xl bg-slate-900 px-4 py-3 text-white hover:bg-slate-800">Add member</button>
               <button type="button" onClick={handleRemoveMember} className="rounded-2xl bg-rose-50 px-4 py-3 text-rose-700 hover:bg-rose-100">
